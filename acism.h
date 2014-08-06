@@ -56,6 +56,16 @@ static inline int acism_scan(ACISM const*psp, MEMREF const text,
     return acism_more(psp, text, fn, fndata, &state);
 }
 
+int acism_more_reverse(ACISM const*, MEMREF const text,
+                 ACISM_ACTION *fn, void *fndata, int *state);
+
+static inline int acism_scan_reverse(ACISM const*psp, MEMREF const text,
+                               ACISM_ACTION *fn, void *fndata)
+{
+    int state = 0;
+    return acism_more_reverse(psp, text, fn, fndata, &state);
+}
+
 void   acism_save(FILE*, ACISM const*);
 ACISM* acism_load(FILE*);
 ACISM* acism_mmap(FILE*);

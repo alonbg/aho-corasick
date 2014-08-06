@@ -19,16 +19,50 @@
 
 #include "_acism.h"
 
-int
-acism_more(ACISM const *psp, MEMREF const text,
+static inline char const * 
+textStart(MEMREF const text, int is_reverse) 
+{
+    if (!is_reverse) {
+        return text.ptr;
+    }
+    return text.ptr + (text.len - 1);
+}
+
+static inline char const * 
+textEnd(MEMREF const text, int is_reverse) 
+{
+    if (!is_reverse) {
+        return text.ptr + text.len;
+    }
+    return text.ptr;
+}
+
+static inline int isEnd(char const * cp, char const * endp, int is_reverse, int cp_increment) 
+{
+    return ((cp - (endp + is_reverse)) * cp_increment) >= 0;
+}
+
+static inline int matchDistance(char const * cp, MEMREF const text, int is_reverse) 
+{
+    if (!is_reverse) {
+        return (cp - text.ptr);
+    }
+    return (textStart(text, is_reverse) - cp);
+}
+
+static int 
+run_match(ACISM const *psp, MEMREF const text, int is_reverse,
            ACISM_ACTION *cb, void *context, int *statep)
 {
     ACISM const ps = *psp;
-    char const *cp = text.ptr, *endp = cp + text.len;
+    char const *cp = textStart(text, is_reverse);
+    char const *endp = textEnd(text, is_reverse);
+    const int cp_increment = is_reverse ? -1 : 1;
     STATE state = *statep;
 
-    while (cp < endp) {
-        _SYMBOL sym = ps.symv[(uint8_t)*cp++];
+    while (!isEnd(cp, endp, is_reverse, cp_increment)) {
+        _SYMBOL sym = ps.symv[(uint8_t)*cp];
+	cp += cp_increment;
         if (!sym) {
             // Input byte is not in any pattern string.
             state = 0;
@@ -76,7 +110,7 @@ acism_more(ACISM const *psp, MEMREF const text,
                         strno = ps.hashv[i].strno;
                     }
 
-                    int ret = cb(strno, cp - text.ptr, context);
+                    int ret = cb(strno, matchDistance(cp, text, is_reverse), context);
                     if (ret)
                         return *statep = state, ret;
                 }
@@ -96,5 +130,19 @@ acism_more(ACISM const *psp, MEMREF const text,
     }
 
     return *statep = state, 0;
+}
+
+int
+acism_more(ACISM const *psp, MEMREF const text,
+           ACISM_ACTION *cb, void *context, int *statep)
+{
+    return run_match(psp, text, 0, cb, context, statep);
+}
+
+int
+acism_more_reverse(ACISM const *psp, MEMREF const text,
+           ACISM_ACTION *cb, void *context, int *statep)
+{
+    return run_match(psp, text, 1, cb, context, statep);
 }
 //EOF
