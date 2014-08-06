@@ -78,6 +78,7 @@ typedef enum {
 // If (pattv) is not NULL, dump output includes strings.
 void acism_dump(ACISM const*, PS_DUMP_TYPE, FILE*, MEMREF const*pattv);
 
+size_t acism_size(ACISM const*);
 #define ACISM_STATS 1   // Collect perf stats during acism_create (see acism_dump).
 
 #endif//ACISM_H

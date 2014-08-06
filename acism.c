@@ -145,4 +145,10 @@ acism_more_reverse(ACISM const *psp, MEMREF const text,
 {
     return run_match(psp, text, 1, cb, context, statep);
 }
+
+size_t
+acism_size(ACISM const *psp)
+{
+    return sizeof(ACISM) + p_size(psp);
+}
 //EOF
