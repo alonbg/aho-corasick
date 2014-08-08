@@ -37,9 +37,9 @@ textEnd(MEMREF const text, int is_reverse)
     return text.ptr;
 }
 
-static inline int isEnd(char const * cp, char const * endp, int is_reverse, int cp_increment) 
+static inline int isEnd(char const * cp, char const * endp, const int is_reverse, const int cp_increment) 
 {
-    return ((cp - (endp + is_reverse)) * cp_increment) >= 0;
+    return (((cp + is_reverse) - endp) * cp_increment) >= 0;
 }
 
 static inline int matchDistance(char const * cp, MEMREF const text, int is_reverse) 
