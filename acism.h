@@ -31,6 +31,8 @@ typedef struct { char const *ptr; size_t len; } MEMREF;
 typedef struct acism ACISM;
 
 ACISM* acism_create(MEMREF const *strv, int nstrs);
+#define ACFLAG_ASCIINOCASE 0x00000002
+ACISM* acism_create_flags(MEMREF const *strv, int nstrs, unsigned flags);
 void   acism_destroy(ACISM*);
 
 // For each match, acism_scan calls its ACISM_ACTION fn,
@@ -56,6 +58,16 @@ static inline int acism_scan(ACISM const*psp, MEMREF const text,
     return acism_more(psp, text, fn, fndata, &state);
 }
 
+int acism_more_reverse(ACISM const*, MEMREF const text,
+                 ACISM_ACTION *fn, void *fndata, int *state);
+
+static inline int acism_scan_reverse(ACISM const*psp, MEMREF const text,
+                               ACISM_ACTION *fn, void *fndata)
+{
+    int state = 0;
+    return acism_more_reverse(psp, text, fn, fndata, &state);
+}
+
 void   acism_save(FILE*, ACISM const*);
 ACISM* acism_load(FILE*);
 ACISM* acism_mmap(FILE*);
@@ -68,6 +80,7 @@ typedef enum {
 // If (pattv) is not NULL, dump output includes strings.
 void acism_dump(ACISM const*, PS_DUMP_TYPE, FILE*, MEMREF const*pattv);
 
+size_t acism_size(ACISM const*);
 #define ACISM_STATS 1   // Collect perf stats during acism_create (see acism_dump).
 
 #endif//ACISM_H
