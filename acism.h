@@ -32,6 +32,7 @@ typedef struct acism ACISM;
 
 ACISM* acism_create(MEMREF const *strv, int nstrs);
 #define ACFLAG_ASCIINOCASE 0x00000002
+#define ACFLAG_ANCHORED    0x00000004
 ACISM* acism_create_flags(MEMREF const *strv, int nstrs, unsigned flags);
 void   acism_destroy(ACISM*);
 
