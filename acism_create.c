@@ -89,10 +89,16 @@ acism_create_flags(MEMREF const* strv, int nstrs, unsigned flags)
 
     // v1, v2: breadth-first work vectors for add_backlink and interleave.
     int nhash, i = (nstrs + 1) * sizeof*tp;
-    add_backlinks(troot, v1 = malloc(i), v2 = malloc(i));
-
+    if (0 == (psp->flags & ACFLAG_ANCHORED)) {
+        add_backlinks(troot, v1 = malloc(i), v2 = malloc(i));
+    } else {
+        v1 = malloc(i);
+        v2 = malloc(i);
+    }
     for (tp = troot + nnodes, nhash = 0; --tp > troot;) {
-        prune_backlinks(tp);
+        if (0 == (psp->flags & ACFLAG_ANCHORED)) {
+            prune_backlinks(tp);
+        }
         nhash += tp->match && tp->child;
     }
 
