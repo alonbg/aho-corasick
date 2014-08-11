@@ -31,6 +31,8 @@ typedef struct { char const *ptr; size_t len; } MEMREF;
 typedef struct acism ACISM;
 
 ACISM* acism_create(MEMREF const *strv, int nstrs);
+#define ACFLAG_ASCIINOCASE 0x00000002
+ACISM* acism_create_flags(MEMREF const *strv, int nstrs, unsigned flags);
 void   acism_destroy(ACISM*);
 
 // For each match, acism_scan calls its ACISM_ACTION fn,

@@ -71,9 +71,16 @@ extern PSSTAT psstat[];
 ACISM*
 acism_create(MEMREF const* strv, int nstrs)
 {
+    return acism_create_flags(strv, nstrs, 0);
+}
+
+ACISM*
+acism_create_flags(MEMREF const* strv, int nstrs, unsigned flags)
+{
     TNODE *tp, **v1 = NULL, **v2 = NULL;
     ACISM *psp = calloc(1, sizeof*psp);
 
+    psp->flags = flags;
     fill_symv(psp, strv, nstrs);
     TNODE *troot = calloc(psp->nchars + 1, sizeof*troot);
 
@@ -133,6 +140,17 @@ DONE: free(troot), free(v1), free(v2);
 typedef struct { int freq, rank; } FRANK;
 static int frcmp(FRANK*a, FRANK*b) { return a->freq - b->freq; }
 
+static inline uint8_t 
+casetype_sym(const ACISM *psp, char sym) {
+	if (0 == (psp->flags & ACFLAG_ASCIINOCASE)) {
+		return sym;
+	}
+	if ('a' <= sym && 'z' >= sym) {
+		return sym - ('a' - 'A');
+	}
+	return sym;
+}
+
 static void
 fill_symv(ACISM *psp, MEMREF const *strv, int nstrs)
 {
@@ -142,12 +160,18 @@ fill_symv(ACISM *psp, MEMREF const *strv, int nstrs)
     for (i = 0; i < 256; ++i) frv[i] = (FRANK){0,i};
     for (i = 0; i < nstrs; ++i)
         for (psp->nchars += j = strv[i].len; --j >= 0;)
-            frv[(uint8_t)strv[i].ptr[j]].freq++;
+            frv[(uint8_t)casetype_sym(psp, strv[i].ptr[j])].freq++;
 
     qsort(frv, 256, sizeof*frv, (qsort_cmp)frcmp);
 
     for (i = 256; --i >= 0 && frv[i].freq;)
         psp->symv[frv[i].rank] = ++psp->nsyms;
+    if (psp->flags & ACFLAG_ASCIINOCASE) {
+        for (i = 'a'; i<= 'z'; ++i) {
+            psp->symv[i] = psp->symv[i - ('a' - 'A')];
+        }
+    }
+
     ++psp->nsyms;
 #if ACISM_SIZE < 8
     psp->sym_bits = bitwid(psp->nsyms);
