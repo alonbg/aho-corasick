@@ -62,79 +62,105 @@ run_match(ACISM const *psp, MEMREF const text, int is_reverse,
     const int cp_increment = is_reverse ? -1 : 1;
     STATE state = *statep;
 
-    while (!isEnd(cp, endp, is_reverse, cp_increment)) {
-        _SYMBOL sym = ps.symv[(uint8_t)*cp];
-	cp += cp_increment;
-        if (!sym) {
-            // Input byte is not in any pattern string.
-            state = ROOT;
-            continue;
-        }
-
-        // Search for a valid transition from this (state, sym),
-        //  following the backref chain.
-
-        TRAN next;
-        while (!t_valid(&ps, next = p_tran(&ps, state, sym)) && state != ROOT) {
-            TRAN back = p_tran(&ps, state, BACK);
-            state = t_valid(&ps, back) ? t_next(&ps, back) : ROOT;
-        }
-
-        if (!t_valid(&ps, next))
-            continue;
-
-        if (!(next & (IS_MATCH | IS_SUFFIX))) {
-            // No complete match yet; keep going.
-            state = t_next(&ps, next);
-            continue;
-        }
-
-        // At this point, one or more patterns have matched.
-        // Find all matches by following the backref chain.
-        // A valid node for (sym) with no SUFFIX flag marks the
-        //  end of the suffix chain.
-        // In the same backref traversal, find a new (state),
-        //  if the original transition is to a leaf.
-
-        STATE s = state;
-
-        // Initially state is ROOT. The chain search saves the
-        //  first state from which the next char has a transition.
-        state = t_isleaf(&ps, next) ? 0 : t_next(&ps, next);
-
-        while (1) {
-
-            if (t_valid(&ps, next)) {
-
-                if (next & IS_MATCH) {
-                    unsigned strno, ss = s + sym, i;
-                    if (t_isleaf(&ps, ps.tranv[ss])) {
-                        strno = t_strno(&ps, ps.tranv[ss]);
-                    } else {
-                        for (i = p_hash(&ps, ss); ps.hashv[i].state != ss; ++i);
-                        strno = ps.hashv[i].strno;
-                    }
-
-                    int ret = cb(strno, matchDistance(cp, text, is_reverse), context);
-                    if (ret)
-                        return *statep = state, ret;
-                }
-
-                if (!state && !t_isleaf(&ps, next))
-                    state = t_next(&ps, next);
-                if ( state && !(next & IS_SUFFIX))
-                    break;
+    if (0 == (ps.flags & ACFLAG_ANCHORED)) {
+        while (!isEnd(cp, endp, is_reverse, cp_increment)) {
+            _SYMBOL sym = ps.symv[(uint8_t)*cp];
+            cp += cp_increment;
+            if (!sym) {
+                // Input byte is not in any pattern string.
+                state = ROOT;
+                continue;
             }
-
-            if (s == ROOT)
+    
+            // Search for a valid transition from this (state, sym),
+            //  following the backref chain.
+    
+            TRAN next;
+            while (!t_valid(&ps, next = p_tran(&ps, state, sym)) && state != ROOT) {
+                TRAN back = p_tran(&ps, state, BACK);
+                state = t_valid(&ps, back) ? t_next(&ps, back) : ROOT;
+            }
+    
+            if (!t_valid(&ps, next))
+                continue;
+    
+            if (!(next & (IS_MATCH | IS_SUFFIX))) {
+                // No complete match yet; keep going.
+                state = t_next(&ps, next);
+                continue;
+            }
+    
+            // At this point, one or more patterns have matched.
+            // Find all matches by following the backref chain.
+            // A valid node for (sym) with no SUFFIX flag marks the
+            //  end of the suffix chain.
+            // In the same backref traversal, find a new (state),
+            //  if the original transition is to a leaf.
+    
+            STATE s = state;
+    
+            // Initially state is ROOT. The chain search saves the
+            //  first state from which the next char has a transition.
+            state = t_isleaf(&ps, next) ? 0 : t_next(&ps, next);
+    
+            while (1) {
+    
+                if (t_valid(&ps, next)) {
+    
+                    if (next & IS_MATCH) {
+                        unsigned strno, ss = s + sym, i;
+                        if (t_isleaf(&ps, ps.tranv[ss])) {
+                            strno = t_strno(&ps, ps.tranv[ss]);
+                        } else {
+                            for (i = p_hash(&ps, ss); ps.hashv[i].state != ss; ++i);
+                            strno = ps.hashv[i].strno;
+                        }
+    
+                        int ret = cb(strno, matchDistance(cp, text, is_reverse), context);
+                        if (ret)
+                            return *statep = state, ret;
+                    }
+    
+                    if (!state && !t_isleaf(&ps, next))
+                        state = t_next(&ps, next);
+                    if ( state && !(next & IS_SUFFIX))
+                        break;
+                }
+    
+                if (s == ROOT)
+                    break;
+    
+                TRAN b = p_tran(&ps, s, BACK);
+                s = t_valid(&ps, b) ? t_next(&ps, b) : ROOT;
+                next = p_tran(&ps, s, sym);
+            }
+        }
+    } else {
+        while (!isEnd(cp, endp, is_reverse, cp_increment)) {
+            _SYMBOL sym = ps.symv[(uint8_t)*cp];
+            cp += cp_increment;
+            TRAN next;
+            if (!sym || !t_valid(&ps, next = p_tran(&ps, state, sym))) {
+                // Input byte is not in any pattern string.
                 break;
-
-            TRAN b = p_tran(&ps, s, BACK);
-            s = t_valid(&ps, b) ? t_next(&ps, b) : ROOT;
-            next = p_tran(&ps, s, sym);
+            }
+            STATE s = state;
+            state = t_isleaf(&ps, next) ? 0 : t_next(&ps, next);
+            if (next & IS_MATCH) {
+                unsigned strno, ss = s + sym, i;
+                if (t_isleaf(&ps, ps.tranv[ss])) {
+                    strno = t_strno(&ps, ps.tranv[ss]);
+                } else {
+                    for (i = p_hash(&ps, ss); ps.hashv[i].state != ss; ++i);
+                    strno = ps.hashv[i].strno;
+                }
+    
+                int ret = cb(strno, matchDistance(cp, text, is_reverse), context);
+                if (ret)
+                    return *statep = state, ret;
+            }
         }
     }
-
     return *statep = state, 0;
 }
 
