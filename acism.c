@@ -61,6 +61,7 @@ run_match(ACISM const *psp, MEMREF const text, int is_reverse,
     char const *endp = textEnd(text, is_reverse);
     const int cp_increment = is_reverse ? -1 : 1;
     STATE state = *statep;
+    int ret = 0;
 
     if (0 == (ps.flags & ACFLAG_ANCHORED)) {
         while (!isEnd(cp, endp, is_reverse, cp_increment)) {
@@ -116,9 +117,8 @@ run_match(ACISM const *psp, MEMREF const text, int is_reverse,
                             strno = ps.hashv[i].strno;
                         }
     
-                        int ret = cb(strno, matchDistance(cp, text, is_reverse), context);
-                        if (ret)
-                            return *statep = state, ret;
+                        if ((ret = cb(strno, matchDistance(cp, text, is_reverse), context)))
+                            goto EXIT;
                     }
     
                     if (!state && !t_isleaf(&ps, next))
@@ -154,14 +154,14 @@ run_match(ACISM const *psp, MEMREF const text, int is_reverse,
                     for (i = p_hash(&ps, ss); ps.hashv[i].state != ss; ++i);
                     strno = ps.hashv[i].strno;
                 }
-    
-                int ret = cb(strno, matchDistance(cp, text, is_reverse), context);
-                if (ret)
-                    return *statep = state, ret;
+
+                if ((ret = cb(strno, matchDistance(cp, text, is_reverse), context)))
+                    goto EXIT;
             }
         }
     }
-    return *statep = state, 0;
+EXIT:
+    return *statep = state, ret;
 }
 
 int
