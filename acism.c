@@ -29,6 +29,7 @@ acism_more(ACISM const *psp, MEMREF const text,
     ACISM const ps = *psp;
     char const *cp = text.ptr, *endp = cp + text.len;
     STATE state = *statep;
+    int ret = 0;
 
     if (0 == (ps.flags & ACFLAG_ANCHORED)) {
         while (cp < endp) {
@@ -83,9 +84,8 @@ acism_more(ACISM const *psp, MEMREF const text,
                             strno = ps.hashv[i].strno;
                         }
     
-                        int ret = cb(strno, cp - text.ptr, context);
-                        if (ret)
-                            return *statep = state, ret;
+                        if ((ret = cb(strno, cp - text.ptr, context)))
+                            goto EXIT;
                     }
     
                     if (!state && !t_isleaf(&ps, next))
@@ -120,13 +120,13 @@ acism_more(ACISM const *psp, MEMREF const text,
                     for (i = p_hash(&ps, ss); ps.hashv[i].state != ss; ++i);
                     strno = ps.hashv[i].strno;
                 }
-    
-                int ret = cb(strno, cp - text.ptr, context);
-                if (ret)
-                    return *statep = state, ret;
+
+                if ((ret = cb(strno, cp - text.ptr, context)))
+                    goto EXIT;
             }
         }
     }
-    return *statep = state, 0;
+EXIT:
+    return *statep = state, ret;
 }
 //EOF
