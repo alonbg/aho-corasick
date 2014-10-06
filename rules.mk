@@ -33,7 +33,7 @@ export SHELL    = /bin/bash
 # Import from PREFIX, export to DESTDIR.
 PREFIX          ?= /usr/local
 DESTDIR         ?= $(PREFIX)
-OS              != uname -s
+OS              = $(shell uname -s)
 
 # HACK CentOS 5 comes with gcc 4.1, gcc 4.4 requires a special command
 #CC              = /usr/bin/gcc44
@@ -57,6 +57,13 @@ exec.profile	= strace -cf
 CFLAGS.Darwin   = 
 LDLIBS.FreeBSD  = -lm
 LDLIBS.Linux    = -lm   # floor()
+ifeq ($(OS), Darwin)
+  WHOLE_ARCHIVE = -Wl,-force_load
+  NOWHOLE_ARCHIVE =
+else
+  WHOLE_ARCHIVE = -Wl,-whole-archive
+  NOWHOLE_ARCHIVE = -Wl,-no-whole-archive
+endif
 
 # Before gcc 4.5, -Wno-unused-result was unknown and causes an error.
 Wno-unused-result != $(CC) -dumpversion | awk '$$0 >= 4.5 {print "-Wno-unused-result"}'
@@ -120,7 +127,7 @@ profile         : BLD := profile
 # To build a .so, "make clean" first, to ensure all .o files compiled with -fPIC
 %.so            : CFLAGS := -fPIC $(filter-out $(CFLAGS.cover) $(CFLAGS.profile), $(CFLAGS))
 %.so            : %.o       ; $(CC) $(LDFLAGS) -o $@ -shared $< $(LDLIBS)
-%.so            : %.a       ; $(CC) $(CFLAGS)  -o $@ -shared -Wl,-whole-archive $< -Wl,-no-whole-archive $(LDLIBS)
+%.so            : %.a       ; $(CC) $(CFLAGS)  -o $@ -shared $(WHOLE_ARCHIVE) $< $(NOWHOLE_ARCHIVE) $(LDLIBS)
 %.a             :           ; [ "$^" ] && ar crs $@ $(filter %.o,$^)
 %.yy.c          : %.l       ; flex -o $@ $<
 %.tab.c 	    : %.y       ; bison $<
