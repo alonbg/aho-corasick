@@ -56,16 +56,15 @@ static int
 run_match(ACISM const *psp, MEMREF const text, int is_reverse,
            ACISM_ACTION *cb, void *context, int *statep)
 {
-    ACISM const ps = *psp;
     char const *cp = textStart(text, is_reverse);
     char const *endp = textEnd(text, is_reverse);
     const int cp_increment = is_reverse ? -1 : 1;
     STATE state = *statep;
     int ret = 0;
 
-    if (0 == (ps.flags & ACFLAG_ANCHORED)) {
+    if (0 == (psp->flags & ACFLAG_ANCHORED)) {
         while (!isEnd(cp, endp, is_reverse, cp_increment)) {
-            _SYMBOL sym = ps.symv[(uint8_t)*cp];
+            _SYMBOL sym = psp->symv[(uint8_t)*cp];
             cp += cp_increment;
             if (!sym) {
                 // Input byte is not in any pattern string.
@@ -77,17 +76,17 @@ run_match(ACISM const *psp, MEMREF const text, int is_reverse,
             //  following the backref chain.
     
             TRAN next;
-            while (!t_valid(&ps, next = p_tran(&ps, state, sym)) && state != ROOT) {
-                TRAN back = p_tran(&ps, state, BACK);
-                state = t_valid(&ps, back) ? t_next(&ps, back) : ROOT;
+            while (!t_valid(psp, next = p_tran(psp, state, sym)) && state != ROOT) {
+                TRAN back = p_tran(psp, state, BACK);
+                state = t_valid(psp, back) ? t_next(psp, back) : ROOT;
             }
     
-            if (!t_valid(&ps, next))
+            if (!t_valid(psp, next))
                 continue;
     
             if (!(next & (IS_MATCH | IS_SUFFIX))) {
                 // No complete match yet; keep going.
-                state = t_next(&ps, next);
+                state = t_next(psp, next);
                 continue;
             }
     
@@ -102,27 +101,27 @@ run_match(ACISM const *psp, MEMREF const text, int is_reverse,
     
             // Initially state is ROOT. The chain search saves the
             //  first state from which the next char has a transition.
-            state = t_isleaf(&ps, next) ? 0 : t_next(&ps, next);
+            state = t_isleaf(psp, next) ? 0 : t_next(psp, next);
     
             while (1) {
     
-                if (t_valid(&ps, next)) {
+                if (t_valid(psp, next)) {
     
                     if (next & IS_MATCH) {
                         unsigned strno, ss = s + sym, i;
-                        if (t_isleaf(&ps, ps.tranv[ss])) {
-                            strno = t_strno(&ps, ps.tranv[ss]);
+                        if (t_isleaf(psp, psp->tranv[ss])) {
+                            strno = t_strno(psp, psp->tranv[ss]);
                         } else {
-                            for (i = p_hash(&ps, ss); ps.hashv[i].state != ss; ++i);
-                            strno = ps.hashv[i].strno;
+                            for (i = p_hash(psp, ss); psp->hashv[i].state != ss; ++i);
+                            strno = psp->hashv[i].strno;
                         }
     
                         if ((ret = cb(strno, matchDistance(cp, text, is_reverse), context)))
                             goto EXIT;
                     }
     
-                    if (!state && !t_isleaf(&ps, next))
-                        state = t_next(&ps, next);
+                    if (!state && !t_isleaf(psp, next))
+                        state = t_next(psp, next);
                     if ( state && !(next & IS_SUFFIX))
                         break;
                 }
@@ -130,29 +129,29 @@ run_match(ACISM const *psp, MEMREF const text, int is_reverse,
                 if (s == ROOT)
                     break;
     
-                TRAN b = p_tran(&ps, s, BACK);
-                s = t_valid(&ps, b) ? t_next(&ps, b) : ROOT;
-                next = p_tran(&ps, s, sym);
+                TRAN b = p_tran(psp, s, BACK);
+                s = t_valid(psp, b) ? t_next(psp, b) : ROOT;
+                next = p_tran(psp, s, sym);
             }
         }
     } else {
         while (!isEnd(cp, endp, is_reverse, cp_increment)) {
-            _SYMBOL sym = ps.symv[(uint8_t)*cp];
+            _SYMBOL sym = psp->symv[(uint8_t)*cp];
             cp += cp_increment;
             TRAN next;
-            if (!sym || !t_valid(&ps, next = p_tran(&ps, state, sym))) {
+            if (!sym || !t_valid(psp, next = p_tran(psp, state, sym))) {
                 // Input byte is not in any pattern string.
                 break;
             }
             STATE s = state;
-            state = t_isleaf(&ps, next) ? 0 : t_next(&ps, next);
+            state = t_isleaf(psp, next) ? 0 : t_next(psp, next);
             if (next & IS_MATCH) {
                 unsigned strno, ss = s + sym, i;
-                if (t_isleaf(&ps, ps.tranv[ss])) {
-                    strno = t_strno(&ps, ps.tranv[ss]);
+                if (t_isleaf(psp, psp->tranv[ss])) {
+                    strno = t_strno(psp, psp->tranv[ss]);
                 } else {
-                    for (i = p_hash(&ps, ss); ps.hashv[i].state != ss; ++i);
-                    strno = ps.hashv[i].strno;
+                    for (i = p_hash(psp, ss); psp->hashv[i].state != ss; ++i);
+                    strno = psp->hashv[i].strno;
                 }
 
                 if ((ret = cb(strno, matchDistance(cp, text, is_reverse), context)))
