@@ -2,10 +2,10 @@
 include $(word 1, ${RULES} rules.mk)
 
 #---------------- PRIVATE VARS:
-acism.x         = acism_x acism_mmap_x
+acism.x         = acism_x acism_mmap_x acism_short
 
 #---------------- PUBLIC (see rules.mk):
-all             : libacism.a
+all             : libacism.a libacism.so
 test            : acism_t.pass
 install         : libacism.a  acism.h
 clean           += *.tmp
