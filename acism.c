@@ -164,6 +164,14 @@ EXIT:
 }
 
 int
+default_on_match(int strnum, int textpos, void *c)
+{
+    (void)strnum, (void)textpos, (void)c;
+
+    return strnum;
+}
+
+int
 acism_more(ACISM const *psp, MEMREF const text,
            ACISM_ACTION *cb, void *context, int *statep)
 {
