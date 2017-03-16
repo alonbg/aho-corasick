@@ -2,7 +2,7 @@
 ** Copyright (C) 2009-2014 Mischa Sandberg <mischasan@gmail.com>
 **
 ** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU Lesser General Public License Version as
+** it under the terms of the GNU Lesser General Public License Version 3 as
 ** published by the Free Software Foundation.  You may not use, modify or
 ** distribute this program under any other version of the GNU Lesser General
 ** Public License.
@@ -37,10 +37,10 @@ static inline int bitwid(unsigned u)
     if (u & 0x00000002) ret++;
     return ret;
 }
+
 static void   fill_symv(ACISM*, MEMREF const*, int ns);
 static int    create_tree(TNODE*, SYMBOL const*symv, MEMREF const*strv, int nstrs);
 static void   add_backlinks(TNODE*, TNODE**, TNODE**);
-static void   prune_backlinks(TNODE*);
 static int    interleave(TNODE*, int nnodes, int nsyms, TNODE**, TNODE**);
 static void   fill_tranv(ACISM*, TNODE const*);
 static void   fill_hashv(ACISM*, TNODE const*, int nn);
@@ -71,16 +71,9 @@ extern PSSTAT psstat[];
 ACISM*
 acism_create(MEMREF const* strv, int nstrs)
 {
-    return acism_create_flags(strv, nstrs, 0);
-}
-
-ACISM*
-acism_create_flags(MEMREF const* strv, int nstrs, unsigned flags)
-{
     TNODE *tp, **v1 = NULL, **v2 = NULL;
     ACISM *psp = calloc(1, sizeof*psp);
 
-    psp->flags = flags;
     fill_symv(psp, strv, nstrs);
     TNODE *troot = calloc(psp->nchars + 1, sizeof*troot);
 
@@ -89,18 +82,7 @@ acism_create_flags(MEMREF const* strv, int nstrs, unsigned flags)
 
     // v1, v2: breadth-first work vectors for add_backlink and interleave.
     int nhash, i = (nstrs + 1) * sizeof*tp;
-    if (0 == (psp->flags & ACFLAG_ANCHORED)) {
-        add_backlinks(troot, v1 = malloc(i), v2 = malloc(i));
-    } else {
-        v1 = malloc(i);
-        v2 = malloc(i);
-    }
-    for (tp = troot + nnodes, nhash = 0; --tp > troot;) {
-        if (0 == (psp->flags & ACFLAG_ANCHORED)) {
-            prune_backlinks(tp);
-        }
-        nhash += tp->match && tp->child;
-    }
+    add_backlinks(troot, v1 = malloc(i), v2 = malloc(i));
 
     // Calculate each node's offset in tranv[]:
     psp->tran_size = interleave(troot, nnodes, psp->nsyms, v1, v2);
@@ -146,17 +128,6 @@ DONE: free(troot), free(v1), free(v2);
 typedef struct { int freq, rank; } FRANK;
 static int frcmp(FRANK*a, FRANK*b) { return a->freq - b->freq; }
 
-static inline uint8_t 
-casetype_sym(const ACISM *psp, char sym) {
-	if (0 == (psp->flags & ACFLAG_ASCIINOCASE)) {
-		return sym;
-	}
-	if ('a' <= sym && 'z' >= sym) {
-		return sym - ('a' - 'A');
-	}
-	return sym;
-}
-
 static void
 fill_symv(ACISM *psp, MEMREF const *strv, int nstrs)
 {
@@ -166,18 +137,12 @@ fill_symv(ACISM *psp, MEMREF const *strv, int nstrs)
     for (i = 0; i < 256; ++i) frv[i] = (FRANK){0,i};
     for (i = 0; i < nstrs; ++i)
         for (psp->nchars += j = strv[i].len; --j >= 0;)
-            frv[(uint8_t)casetype_sym(psp, strv[i].ptr[j])].freq++;
+            frv[(uint8_t)strv[i].ptr[j]].freq++;
 
     qsort(frv, 256, sizeof*frv, (qsort_cmp)frcmp);
 
     for (i = 256; --i >= 0 && frv[i].freq;)
         psp->symv[frv[i].rank] = ++psp->nsyms;
-    if (psp->flags & ACFLAG_ASCIINOCASE) {
-        for (i = 'a'; i<= 'z'; ++i) {
-            psp->symv[i] = psp->symv[i - ('a' - 'A')];
-        }
-    }
-
     ++psp->nsyms;
 #if ACISM_SIZE < 8
     psp->sym_bits = bitwid(psp->nsyms);
@@ -242,9 +207,20 @@ add_backlinks(TNODE *troot, TNODE **v1, TNODE **v2)
         while ((srcp = *spp++)) {
             for (dstp = srcp->child; dstp; dstp = dstp->next) {
                 TNODE *bp = NULL;
-                *dpp++ = dstp;
+                if (dstp->child)
+                    *dpp++ = dstp;
+
+                // Go through the parent (srcp) node's backlink chain,
+                //  looking for a useful backlink for the child (dstp).
+                // If the parent (srcp) has a backlink to (tp), and (tp) has a child (with children)
+                //  matching the transition sym for (srcp -> dstp),
+                //  then it is a useful backlink for the child (dstp).
+                // Note that backlinks do not point at the suffix match;
+                //  they point at the PARENT of that match.
+
                 for (tp = srcp->back; tp; tp = tp->back)
-                   if ((bp = find_child(tp, dstp->sym))) break;
+                    if ((bp = find_child(tp, dstp->sym)) && bp->child)
+                        break;
                 if (!bp)
                     bp = troot;
 
@@ -255,40 +231,6 @@ add_backlinks(TNODE *troot, TNODE **v1, TNODE **v2)
         }
         *dpp = 0;
         tmp = v1; v1 = v2; v2 = tmp;
-    }
-}
-
-static void
-prune_backlinks(TNODE *tp)
-{
-    if (tp->x.nrefs || !tp->child)
-        return;
-
-    TNODE *bp;
-        // (bp != bp->back IFF bp != troot)
-    while ((bp = tp->back) && !bp->match && bp != bp->back) {
-        HIT("backlinks");
-        TNODE *cp = tp->child, *pp = bp->child;
-
-        // Search for a child of bp that's not a child of tp
-        for (; cp && pp && pp->sym >= cp->sym; cp = cp->next) {
-            if (pp->sym == cp->sym) {
-                if (pp->match && cp->is_suffix) break;
-                pp = pp->next;
-            }
-        }
-
-        if (pp) break;
-
-        // So, target of back link is not a suffix match
-        // of this node, and its children are a subset
-        // of this node's children: prune it.
-        HIT("pruned");
-        if ((tp->back = bp->back)) {
-            tp->back->x.nrefs++;
-            if (!--bp->x.nrefs)
-                prune_backlinks(bp);
-        }
     }
 }
 
