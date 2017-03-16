@@ -103,4 +103,13 @@ acism_more(ACISM const *psp, MEMREF const text,
 EXIT:
     return *statep = state, ret;
 }
+
+
+int
+default_on_match(int strnum, int textpos, void *c)
+{
+    (void)strnum, (void)textpos, (void)c;
+
+    return strnum;
+}
 //EOF

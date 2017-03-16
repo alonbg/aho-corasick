@@ -30,6 +30,8 @@ typedef struct { char const *ptr; size_t len; } MEMREF;
 
 typedef struct acism ACISM;
 
+int default_on_match(int strnum, int textpos, void *c);
+
 ACISM* acism_create(MEMREF const *strv, int nstrs);
 #define ACFLAG_ASCIINOCASE 0x00000002
 #define ACFLAG_ANCHORED    0x00000004
